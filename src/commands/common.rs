@@ -3,7 +3,7 @@ use crate::path;
 use anyhow::{anyhow, Context, Result};
 use dialoguer::Input;
 use std::path::PathBuf;
-use std::process::{Command, Output};
+use std::process::{Command, Stdio};
 
 use crate::github;
 use crate::github::{NoReposFound, RemoteRepo, Unauthorized};
@@ -52,14 +52,18 @@ fn remote_repos(token: &str, org: &str) -> Result<Vec<RemoteRepo>> {
 }
 
 pub fn read_dirs_for_org(org: &str, root: &str, filter: Option<&Filter>) -> Result<Vec<PathBuf>> {
+    log::trace!("read_dirs_for_org {} {} {:?}", org, root, &filter);
     let target_dir = path::local_path_org(org, &root)?;
+
+    log::trace!("{:?}", &target_dir);
 
     let result = match filter {
         Some(f) => read_dirs_with_filter(&target_dir, &f),
         None => read_dirs(&target_dir),
     };
+    log::trace!("{:?}", &result);
 
-    match result {
+    let r = match result {
         Ok(r) => Ok(r),
         Err(e) => Err(anyhow!(
             "Cannot read sub directories for organisation {} \"{}\" because {:?}",
@@ -67,7 +71,9 @@ pub fn read_dirs_for_org(org: &str, root: &str, filter: Option<&Filter>) -> Resu
             org,
             e
         )),
-    }
+    };
+    log::trace!("{:?}", &r);
+    r
 }
 
 /// Filter directory's name by regex
@@ -106,32 +112,26 @@ pub fn ask_for(prompt: &str) -> Result<String> {
 
 pub fn apply_script(dir: &PathBuf, script: &str) -> Result<()> {
     let output = execute_script(script, dir)?;
-    if output.status.success() {
+    log::trace!("Applying script");
+    if output.success() {
+        log::trace!("Success");
         Ok(())
     } else {
-        let err_message = String::from_utf8(output.stderr)
-            .unwrap_or_else(|_| format!("Cannot execute the script {}", script));
-        Err(anyhow!(err_message))
+        Err(anyhow!( format!("Cannot execute the script {}", script)))
     }
 }
 
-fn execute_script(script: &str, dir: &PathBuf) -> Result<Output> {
-    let output = if cfg!(target_os = "windows") {
-        Command::new("cmd")
-            .args(&["/C", script])
-            .current_dir(dir)
-            .output()
-            .expect("failed to execute process")
-    } else {
-        Command::new("sh")
-            .arg("-c")
-            .arg(script)
-            .current_dir(dir)
-            .output()
-            .expect("failed to execute process")
-    };
+fn execute_script(script: &str, dir: &PathBuf) -> Result<std::process::ExitStatus> {
+    let mut child = Command::new(script)
+        .stdin(Stdio::null())
+        .stdout(Stdio::inherit())
+        .stderr(Stdio::inherit())
+        .current_dir(dir)
+        .envs(std::env::vars())
+        .spawn()
+        .expect("failed to execute process");
 
-    log::debug!("Script result {:?}", output);
+    // log::debug!("Script result {:?}", output);
 
-    Ok(output)
+    Ok(child.wait()?)
 }

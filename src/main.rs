@@ -18,7 +18,7 @@ fn main() -> Result<()> {
 
     pretty_env_logger::formatted_timed_builder()
         .filter(None, log::LevelFilter::Info)
-        .filter(Some("gut"), log::LevelFilter::Debug)
+        .filter(Some("gut"), log::LevelFilter::Trace)
         .init();
 
     let args = Args::from_args();
