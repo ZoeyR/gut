@@ -70,18 +70,27 @@ fn get_repo_data(
 
     let p: Input = serde_json::from_str(&data)?;
 
-    let count = &p.version.split('.').count();
-    let version = if *count == 2 {
-        format!("{}.0", &p.version)
-    } else {
-        p.version.clone()
-    };
-
     let mut package: HashMap<String, String> = HashMap::new();
+
     package.insert("__NAME__".to_string(), p.name.clone());
-    package.insert("__HUMAN_NAME__".to_string(), p.human_name.clone());
-    package.insert("__VERSION__".to_string(), version);
-    package.insert("__TAG__".to_string(), p.language_tag);
+
+    if let Some(version) = p.version {
+        let count = &version.split('.').count();
+        let version = if *count == 2 {
+            format!("{}.0", &version)
+        } else {
+            version
+        };
+        package.insert("__VERSION__".to_string(), version);
+    }
+
+    if let Some(human_name) = p.human_name {
+        package.insert("__HUMAN_NAME__".to_string(), human_name);
+    }
+
+    if let Some(language_tag) = p.language_tag {
+        package.insert("__TAG__".to_string(), language_tag);
+    }
 
     let repo_data = RepoData { package };
 
@@ -91,7 +100,7 @@ fn get_repo_data(
 #[derive(Deserialize)]
 struct Input {
     name: String,
-    version: String,
-    human_name: String,
-    language_tag: String,
+    version: Option<String>,
+    human_name: Option<String>,
+    language_tag: Option<String>,
 }
